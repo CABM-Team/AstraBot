@@ -1,0 +1,4 @@
+must = false                     # false=可选（AI 可不填），true=必填
+function_format = "string"       # JSON 值的类型：string / array / object 等
+function_desc = "如果想发送图片，可以用base64或img形式"
+re_exec = false
