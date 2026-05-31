@@ -56,9 +56,13 @@ AstraBot/
 ### 安装
 
 ```bash
+# 先安装pipx
+sudo pacman -S python-pipx # 不同发行版和系统不一样。例如Windows需要pip：python -m pip install --user pipx
+pipx install nb-cli
+
 # 创建虚拟环境
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate # Windows用./.venv/scripts/activate；fish用户用source .venv/bin/activate.fish
 
 # 安装依赖
 pip install -e .
