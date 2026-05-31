@@ -131,4 +131,4 @@ def run(bot, event, history, image_desc, config, plugin_config):
 
 ## 许可证
 
-MIT
+GNU GPL v3.0
