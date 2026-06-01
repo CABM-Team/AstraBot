@@ -12,6 +12,7 @@
 - **回复概率控制** — 四种概率分别控制普通消息 / @触发 / 回复中搭话 / 回复中被 @ 插入
 - **事实自动提取** — 从群聊对话中自动提取用户信息，形成中期记忆
 - **记忆指令** — 支持 `记住` / `忘记` / `查看记忆` 等自然语言记忆管理
+- **下线通知** — bot被踢下线，通过系统通知提醒下线（支持Linux/macOS/Windows）
 
 ## 项目结构
 
@@ -56,6 +57,10 @@ AstraBot/
 ### 安装
 
 ```bash
+# 对于 Linux 用户，请先确保你安装了libnotify：
+pacman -Ss libnotify # 例如 ArchLinux，搜索结果会提示“已安装”
+sudo pacman -S libnotify # 如果没安装，直接安装即可
+
 # 先安装pipx
 sudo pacman -S python-pipx # 不同发行版和系统不一样。例如Windows需要pip：python -m pip install --user pipx
 pipx install nb-cli
@@ -96,6 +101,10 @@ cp .env.example .env
 | `VISUAL_API_PROVIDER` | 图片分析专用厂商（SILICONFLOW） |
 
 ### 启动
+
+你需要先安装napcatqq然后设置：
+- 安装：https://napneko.github.io/guide/install
+- 配置：https://napneko.github.io/config/basic
 
 ```bash
 nb run

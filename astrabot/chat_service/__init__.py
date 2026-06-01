@@ -5,6 +5,7 @@ from __future__ import annotations
 from nonebot import on_message, on_notice
 from nonebot.adapters.onebot.v11 import Bot, GroupMessageEvent, NoticeEvent
 
+from astrabot.chat_service.desktop_notify import send_desktop_notification
 from astrabot.chat_service.history_manager import delete_by_message_id
 from astrabot.chat_service.message_handler import handle_group_message
 from astrabot.chat_service.plugin_loader import PluginLoader
@@ -19,26 +20,31 @@ async def handle(bot: Bot, event: GroupMessageEvent):
     await handle_group_message(bot, event)
 
 
-recall = on_notice()
+notice_handler = on_notice()
 
 
-@recall.handle()
-async def handle_recall(bot: Bot, event: NoticeEvent):
-    """处理群消息撤回：标记已撤回并从历史记录中删除对应消息"""
+@notice_handler.handle()
+async def handle_notice(bot: Bot, event: NoticeEvent):
     data = event.model_dump()
-    if data.get("notice_type") != "group_recall":
-        return
-    group_id = data.get("group_id")
-    message_id = data.get("message_id")
-    if not group_id or not message_id:
-        return
+    notice_type = data.get("notice_type")
 
-    ReplyController.add_recalled(group_id, message_id)
-    deleted = await delete_by_message_id(group_id, message_id)
-    if deleted:
-        logger.info(f"Removed recalled message {message_id} from history in group {group_id}")
-    else:
-        logger.debug(f"Recalled message {message_id} not found in history (group {group_id})")
+    if notice_type == "group_recall":
+        group_id = data.get("group_id")
+        message_id = data.get("message_id")
+        if not group_id or not message_id:
+            return
+        ReplyController.add_recalled(group_id, message_id)
+        deleted = await delete_by_message_id(group_id, message_id)
+        if deleted:
+            logger.info(f"Removed recalled message {message_id} from history in group {group_id}")
+        else:
+            logger.debug(f"Recalled message {message_id} not found in history (group {group_id})")
+
+    elif notice_type == "bot_offline":
+        msg = data.get("message", "")
+        tag = data.get("tag", "")
+        logger.warning(f"Bot offline detected: tag={tag}, message={msg}")
+        send_desktop_notification("AstraBot 离线通知", "QQ凭证过期，请重新登录")
 
 
 PluginLoader.load_all()

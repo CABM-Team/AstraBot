@@ -376,14 +376,14 @@ def build_memory_context(
 
     ltm = get_long_term_memories(group_id)
     ltm_text = "\n".join(
-        f"{i+1}. [{datetime.fromtimestamp(m['created_at']).strftime('%m-%d')}] {m['content']}"
+        f"{i+1}. [{datetime.fromtimestamp(m['created_at']).strftime('%m-%d %H:%M')}] {m['content']}"
         for i, m in enumerate(ltm)
     ) if ltm else ""
 
     # 中期记忆：取最近的事实，不依赖关键词搜索（中文分词效果差）
     recent_facts = get_recent_facts(group_id, limit=10)
     facts_text = "\n".join(
-        f"- [{datetime.fromtimestamp(f['created_at']).strftime('%m-%d')}] {f['fact']}"
+        f"- [{datetime.fromtimestamp(f['created_at']).strftime('%m-%d %H:%M')}] {f['fact']}"
         for f in recent_facts
     ) if recent_facts else ""
 
