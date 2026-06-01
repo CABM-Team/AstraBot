@@ -40,6 +40,7 @@ class Config:
     VISUAL_API_MODEL: str = ""
 
     MINIMAX_API_HOST: str = "https://api.minimaxi.com"
+    system_prompt: str = ""
 
     @classmethod
     def load(cls) -> Config:
@@ -108,6 +109,7 @@ class Config:
             VISUAL_API_PROVIDER=raw.get("VISUAL_API_PROVIDER", "SILICONFLOW"),
             VISUAL_API_MODEL=raw.get("VISUAL_API_MODEL", ""),
             MINIMAX_API_HOST=raw.get("MINIMAX_API_HOST", "https://api.minimaxi.com"),
+            system_prompt=raw.get("system_prompt", ""),
         )
 
 

@@ -43,3 +43,13 @@ CACHEDIR.TAG
 # AstraBot Plugins
 astrabot/chat_service/plugins/*
 !astrabot/chat_service/plugins/example_plug/
+
+# Local management scripts
+manage_memory.py
+gen_test_prompt*.py
+gen_curl_file.py
+test_*.py
+run_migrate.py
+MEMORY_*.md
+INTEGRATION_COMPLETE.md
+QUICK_START.md

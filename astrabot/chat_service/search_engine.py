@@ -174,7 +174,6 @@ async def run_search(initial_query: str, context: str) -> dict:
                         model=config.API_MODEL,
                         messages=messages,
                         tools=TOOLS,
-                        tool_choice="auto",
                         timeout=20,
                     )
 
@@ -232,12 +231,10 @@ async def run_search(initial_query: str, context: str) -> dict:
                 logger.warning(f"Search agent reached max tool calls ({MAX_TOOL_CALLS}), forcing summary")
                 force_prompt = "你已进行多轮搜索，请根据已获取的信息，用 respond 工具给出最终总结回答。"
                 messages.append({"role": "user", "content": force_prompt})
-                # tool_choice="required" 强制 AI 必须调用 respond
                 response = await client.chat.completions.create(
                     model=config.API_MODEL,
                     messages=messages,
                     tools=TOOLS,
-                    tool_choice="required",
                     timeout=20,
                 )
                 msg = response.choices[0].message
@@ -248,6 +245,9 @@ async def run_search(initial_query: str, context: str) -> dict:
                             logger.info(f"Search agent force respond ({len(forced)} chars)")
                             logger.debug(f"Forced respond content: {forced[:500]}")
                             summary_result["summary"] = forced
+                elif msg.content:
+                    logger.info(f"Search agent force respond (text, {len(msg.content)} chars)")
+                    summary_result["summary"] = msg.content
 
     except* Exception as eg:
         # Python 3.11+ ExceptionGroup：MCP stdio 关闭时可能抛出多异常

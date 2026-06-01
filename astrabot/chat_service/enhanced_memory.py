@@ -13,6 +13,7 @@ import re
 import sqlite3
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
@@ -374,11 +375,17 @@ def build_memory_context(
 
 
     ltm = get_long_term_memories(group_id)
-    ltm_text = "\n".join(f"{i+1}. {m['content']}" for i, m in enumerate(ltm)) if ltm else ""
+    ltm_text = "\n".join(
+        f"{i+1}. [{datetime.fromtimestamp(m['created_at']).strftime('%m-%d')}] {m['content']}"
+        for i, m in enumerate(ltm)
+    ) if ltm else ""
 
-
-    relevant_facts = search_relevant_facts(group_id, current_message, limit=5)
-    facts_text = "\n".join(f"- {f['fact']}" for f in relevant_facts) if relevant_facts else ""
+    # 中期记忆：取最近的事实，不依赖关键词搜索（中文分词效果差）
+    recent_facts = get_recent_facts(group_id, limit=10)
+    facts_text = "\n".join(
+        f"- [{datetime.fromtimestamp(f['created_at']).strftime('%m-%d')}] {f['fact']}"
+        for f in recent_facts
+    ) if recent_facts else ""
 
 
     impressions = []

@@ -79,11 +79,16 @@ async def chat(
             http_client=http_client,
         )
         try:
+            # Anthropic 协议的 system 是独立参数，不能放在 messages 里
+            anthropic_messages = [m for m in messages if m["role"] != "system"]
+            system_content = next((m["content"] for m in messages if m["role"] == "system"), None)
             kwargs = {
                 "model": model,
                 "max_tokens": 4096,
-                "messages": messages,
+                "messages": anthropic_messages,
             }
+            if system_content:
+                kwargs["system"] = system_content
             message = await client.messages.create(**kwargs)
             content = ""
             for block in message.content:
@@ -160,7 +165,10 @@ async def generate_reply(
     """调用主/备 AI 生成 JSON 格式回复，自动重试与降级"""
     config = get_config()
 
-    messages = [{"role": "user", "content": prompt}]
+    messages = []
+    if config.system_prompt:
+        messages.append({"role": "system", "content": config.system_prompt})
+    messages.append({"role": "user", "content": prompt})
 
     for provider_key, provider_name in [
         (config.API_PROVIDER, config.API_MODEL),
