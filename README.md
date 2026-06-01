@@ -34,8 +34,7 @@ AstraBot/
 │   │   ├── image_utils.py           # 图片解析工具
 │   │   ├── plugin_loader.py         # 插件动态加载器
 │   │   └── plugins/
-│   │       ├── example_plug/        # 示例插件模板
-│   │       └── docker_exec/         # Docker 执行插件
+│   │       └── example_plug/        # 示例插件模板
 │   └── logmanager/
 │       └── logger.py                # 统一日志管理
 ├── .env.example                     # 环境变量示例
