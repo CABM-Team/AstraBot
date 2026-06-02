@@ -33,10 +33,7 @@ from astrabot.chat_service.enhanced_memory import (
     extract_facts_from_conversation,
     build_memory_context,
 )
-from astrabot.chat_service.memory_commands import (
-    handle_memory_command,
-    check_implicit_memory_request,
-)
+
 from astrabot.chat_service.plugin_loader import PluginLoader
 from astrabot.chat_service.prompt_builder import (
     build_image_analysis_prompt,
@@ -172,11 +169,6 @@ async def handle_group_message(bot: Bot, event: GroupMessageEvent):
     await trim_history(group_id)
 
     if plain_text.startswith("/"):
-
-        handled, reply = handle_memory_command(group_id, user_id, plain_text)
-        if handled:
-            await bot.send_group_msg(group_id=group_id, message=reply)
-            return
         logger.debug(f"Command message ignored: {plain_text[:30]}")
         return
 
@@ -186,12 +178,6 @@ async def handle_group_message(bot: Bot, event: GroupMessageEvent):
     if is_user_ignored(group_id, user_id, is_at):
         logger.debug(f"Ignored user {user_name}({user_id}) in group {group_id}")
         return
-
-
-    implicit_memory = check_implicit_memory_request(plain_text)
-    if implicit_memory:
-        from astrabot.chat_service.enhanced_memory import add_long_term_memory
-        add_long_term_memory(group_id, implicit_memory, created_by=user_id)
 
 
     if await _is_bot_muted(bot, group_id):
