@@ -48,10 +48,10 @@ AstraBot/
 ### 环境要求
 
 - Python >= 3.10
-- 三个 AI API Key（均为必填）：
-  - **MiniMax** — Token Plan，用于联网搜索
-  - **DeepSeek** — 主聊天模型；联网搜索的Agent
-  - **SiliconFlow** — 图像识别
+- API Key：
+  - **MiniMax** — Token Plan，用于联网搜索 MCP
+  - **主聊天模型** — 通过 `API_KEY` 配置，同时用于联网搜索 Agent
+  - **视觉模型** — 通过 `VISUAL_API_KEY` 配置，用于图像识别
 
 ### 安装
 
@@ -79,9 +79,9 @@ pip install -e .
 cp .env.example .env
 
 # 编辑 .env，填入 API Key 和配置
-# 必填项：SILICONFLOW_API_KEY, MINIMAX_API_KEY, DEEPSEEK_API_KEY
+# 必填项：MINIMAX_API_KEY, API_KEY, BACK_API_KEY, VISUAL_API_KEY
 #          name, name_cn, person_setting, output_style, reply_style, extra_style, image_analyzer
-#          API_MODEL, BACK_API_MODEL, VISUAL_API_MODEL
+#          API_PROTOCOL, API_BASE_URL, API_MODEL, BACK_API_PROTOCOL, BACK_API_BASE_URL, BACK_API_MODEL, VISUAL_API_MODEL
 ```
 
 关键配置项说明：
@@ -95,9 +95,9 @@ cp .env.example .env
 | `enabled_groups` | 启用机器人的群号列表，如 `['12345678']` |
 | `reply_rate` | 普通消息回复概率（0.0 ~ 1.0） |
 | `reply_rate_at` | 被 @ 时的回复概率 |
-| `API_PROVIDER` | 主 API 厂商（MINIMAX / DEEPSEEK） |
-| `BACK_API_PROVIDER` | 主 API 失败时的备用厂商 |
-| `VISUAL_API_PROVIDER` | 图片分析专用厂商（SILICONFLOW） |
+| `API_PROTOCOL` / `API_BASE_URL` / `API_KEY` / `API_MODEL` | 主聊天模型配置，同时用于联网搜索 Agent |
+| `BACK_API_PROTOCOL` / `BACK_API_BASE_URL` / `BACK_API_KEY` / `BACK_API_MODEL` | 主 API 失败时的备用聊天模型配置 |
+| `VISUAL_API_KEY` / `VISUAL_API_PROVIDER` / `VISUAL_API_MODEL` | 图片分析专用配置 |
 
 ### 启动
 

@@ -139,8 +139,8 @@ async def run_search(initial_query: str, context: str) -> dict:
 
     http_client = _get_httpx_client(timeout=20)
     client = AsyncOpenAI(
-        api_key=config.DEEPSEEK_API_KEY,
-        base_url="https://api.deepseek.com",
+        api_key=config.API_KEY,
+        base_url=config.API_BASE_URL,
         http_client=http_client,
     )
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import os
 from dataclasses import dataclass, field
 
@@ -28,15 +29,20 @@ class Config:
     reply_rate_in_reply: float = 0.0
     reply_rate_at_in_reply: float = 1.0
 
-    SILICONFLOW_API_KEY: str = ""
     MINIMAX_API_KEY: str = ""
-    DEEPSEEK_API_KEY: str = ""
 
-    API_PROVIDER: str = "MINIMAX"
+    API_PROTOCOL: str = ""
+    API_BASE_URL: str = ""
+    API_KEY: str = ""
     API_MODEL: str = ""
-    BACK_API_PROVIDER: str = "DEEPSEEK"       # 主 API 失败时的备用提供商
+
+    BACK_API_PROTOCOL: str = ""
+    BACK_API_BASE_URL: str = ""
+    BACK_API_KEY: str = ""
     BACK_API_MODEL: str = ""
-    VISUAL_API_PROVIDER: str = "SILICONFLOW"  # 图片分析专用提供商
+
+    VISUAL_API_KEY: str = ""
+    VISUAL_API_PROVIDER: str = "SILICONFLOW"
     VISUAL_API_MODEL: str = ""
 
     MINIMAX_API_HOST: str = "https://api.minimaxi.com"
@@ -52,7 +58,7 @@ class Config:
             if not raw.get(key):
                 raise ValueError(f"Missing required config: {key}")
 
-        required_api = ["SILICONFLOW_API_KEY", "MINIMAX_API_KEY", "DEEPSEEK_API_KEY"]
+        required_api = ["MINIMAX_API_KEY", "VISUAL_API_KEY"]
         for key in required_api:
             if not raw.get(key):
                 raise ValueError(f"Missing required config: {key}")
@@ -62,9 +68,20 @@ class Config:
             if not raw.get(key):
                 raise ValueError(f"Missing required config: {key}")
 
+        required_chat_keys = [
+            "API_PROTOCOL",
+            "API_BASE_URL",
+            "API_KEY",
+            "BACK_API_PROTOCOL",
+            "BACK_API_BASE_URL",
+            "BACK_API_KEY",
+        ]
+        for key in required_chat_keys:
+            if not raw.get(key):
+                raise ValueError(f"Missing required config: {key}")
+
         enabled_groups_raw = raw.get("enabled_groups", "[]")
         if isinstance(enabled_groups_raw, str):
-            import ast
             enabled_groups = [int(x) for x in ast.literal_eval(enabled_groups_raw)]
         else:
             enabled_groups = [int(x) for x in enabled_groups_raw]
@@ -80,7 +97,6 @@ class Config:
 
         keyword_raw = raw.get("keyword", "[]")
         if isinstance(keyword_raw, str):
-            import ast
             keyword = ast.literal_eval(keyword_raw)
         else:
             keyword = list(keyword_raw)
@@ -99,13 +115,16 @@ class Config:
             reply_rate_at=floats["reply_rate_at"],
             reply_rate_in_reply=floats["reply_rate_in_reply"],
             reply_rate_at_in_reply=floats["reply_rate_at_in_reply"],
-            SILICONFLOW_API_KEY=raw.get("SILICONFLOW_API_KEY", ""),
             MINIMAX_API_KEY=raw.get("MINIMAX_API_KEY", ""),
-            DEEPSEEK_API_KEY=raw.get("DEEPSEEK_API_KEY", ""),
-            API_PROVIDER=raw.get("API_PROVIDER", "MINIMAX"),
+            API_PROTOCOL=raw.get("API_PROTOCOL", ""),
+            API_BASE_URL=raw.get("API_BASE_URL", ""),
+            API_KEY=raw.get("API_KEY", ""),
             API_MODEL=raw.get("API_MODEL", ""),
-            BACK_API_PROVIDER=raw.get("BACK_API_PROVIDER", "DEEPSEEK"),
+            BACK_API_PROTOCOL=raw.get("BACK_API_PROTOCOL", ""),
+            BACK_API_BASE_URL=raw.get("BACK_API_BASE_URL", ""),
+            BACK_API_KEY=raw.get("BACK_API_KEY", ""),
             BACK_API_MODEL=raw.get("BACK_API_MODEL", ""),
+            VISUAL_API_KEY=raw.get("VISUAL_API_KEY", ""),
             VISUAL_API_PROVIDER=raw.get("VISUAL_API_PROVIDER", "SILICONFLOW"),
             VISUAL_API_MODEL=raw.get("VISUAL_API_MODEL", ""),
             MINIMAX_API_HOST=raw.get("MINIMAX_API_HOST", "https://api.minimaxi.com"),
