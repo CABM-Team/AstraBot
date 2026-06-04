@@ -12,23 +12,54 @@ plugins/
 
 ## 插件如何工作
 
-消息处理流程中，插件链在 **AI 生成回复之前** 按目录名排序依次执行。每个插件的 `run()` 接收当前上下文，可以：
+消息处理流程中，插件链在 **AI 生成回复之前** 按目录名排序依次执行。每个插件可以通过两个阶段参与：
 
-- 直接返回回复文本（跳过 AI 生成）
-- 修改/扩写发送给 AI 的提示词
-- 返回 None 表示不干预
+- `before_run()`：读取当前消息/历史，返回提示词片段，嵌入完整提示词
+- `run()`：直接返回回复文本、修改提示词，或返回 None 表示不干预
 
 ### 插件链执行顺序
 
 ```
 收到群消息 → 记录历史 → 概率判定 → 获取锁
   → 插件链执行（按目录名排序）
+      → 插件A before_run()
       → 插件A run()
-      → 插件B run()（如果 A 没 block）
+      → 插件B before_run()/run()（如果 A 没 block）
       → ...
-  → 图片识别 → 拼提示词
+  → 图片识别 → 拼提示词（含 before_run 注入）
   → AI 生成回复 → （搜索循环）→ 发送
 ```
+
+## `before_run()`
+
+```python
+def before_run(bot, event, history, image_desc, config, plugin_config):
+    """
+    可选钩子，在默认主提示词构建之前执行。
+
+    适合做知识库检索、聊天记录关键词提取、上下文扩写等预处理。
+
+    参数与 run() 完全一致。
+
+    返回值：
+      str | dict | None
+
+      None = 不注入任何内容
+      str  = 直接作为提示词片段注入到完整提示词末尾
+      dict 可选字段：
+
+      prompt (str)
+          作为提示词片段注入到完整提示词末尾。
+
+      append_prompt (str)
+          与 prompt 等价，便于和 run() 的返回风格保持一致。
+    """
+    return None
+```
+
+- `before_run()` 会在每个插件自己的 `run()` 之前执行
+- 所有插件返回的提示词片段会按插件顺序合并，并嵌入主提示词
+- `before_run()` 只负责提示词预处理，不控制 `skip_main` / `block` / `reply`
 
 ## `run()` 函数
 
@@ -59,7 +90,7 @@ def run(bot, event, history, image_desc, config, plugin_config):
       override_prompt (str)
           完全替换发送给 AI 的提示词。
           设置了此字段后，系统不再组装人设/历史/记忆等，直接使用此内容。
-          适用于需要完全控制 AI 输出的场景。
+          如果同插件链中存在 before_run() 返回内容，这些内容仍会追加到 override_prompt 末尾。
 
       append_prompt (str)
           在默认提示词末尾追加内容。

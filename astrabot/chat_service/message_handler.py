@@ -255,13 +255,16 @@ async def _reply_flow(
         current_image_descs = desc_parts
         image_desc = "; ".join(desc_parts)
 
-    plugin_result, re_exec_append = PluginLoader.execute_chain(
+    plugin_hook_result = PluginLoader.execute_chain(
         bot=bot,
         event=event,
         history=history,
         image_desc=image_desc,
         config=config,
     )
+    plugin_result = plugin_hook_result.merged
+    re_exec_append = plugin_hook_result.re_exec_append
+    pre_prompt_parts = plugin_hook_result.pre_prompt_parts
 
     plugin_section = PluginLoader.get_plugin_section()
 
@@ -345,10 +348,12 @@ async def _reply_flow(
 
     override_prompt = plugin_result.get("override_prompt") if plugin_result else None
     append_prompt = plugin_result.get("append_prompt") if plugin_result else None
+    pre_prompt = "\n\n".join(part for part in pre_prompt_parts if part)
 
-    # override_prompt 完全替换 build_main_prompt 的输出；append_prompt 追加到末尾
     if override_prompt:
         main_prompt = override_prompt
+        if pre_prompt:
+            main_prompt += "\n\n" + pre_prompt
     else:
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         main_prompt = build_main_prompt(
@@ -362,8 +367,9 @@ async def _reply_flow(
             long_term_memory=memory_ctx["long_term"],
             relevant_facts=memory_ctx["facts"],
         )
-        if append_prompt:
-            main_prompt += "\n\n" + append_prompt
+        inject_parts = [part for part in [pre_prompt, append_prompt] if part]
+        if inject_parts:
+            main_prompt += "\n\n" + "\n\n".join(inject_parts)
 
     if re_exec_append:
         # re_exec 插件要求：将插件输出注入历史后，获取执行期间新消息，让 AI 重新构思

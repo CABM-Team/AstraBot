@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import tomllib
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -18,6 +20,13 @@ DEFAULT_SETTINGS = {
     "function_desc": "",
     "re_exec": False,
 }
+
+
+@dataclass
+class PluginHookResult:
+    merged: dict | None = None
+    re_exec_append: str = ""
+    pre_prompt_parts: list[str] = field(default_factory=list)
 
 
 class PluginInfo:
@@ -102,15 +111,57 @@ class PluginLoader:
         lines.append("  示例：{\"reply\": \"...\", \"docker_exec\": \"ls -la\"}")
         return "\n".join(lines)
 
+    @staticmethod
+    def _call_hook(func, plugin_name: str, **kwargs):
+        try:
+            signature = inspect.signature(func)
+            accepted_kwargs = {
+                key: value
+                for key, value in kwargs.items()
+                if key in signature.parameters
+            }
+        except (TypeError, ValueError):
+            accepted_kwargs = kwargs
+
+        try:
+            return func(**accepted_kwargs)
+        except TypeError as e:
+            logger.error(f"Plugin {plugin_name} hook call error: {e}")
+            return None
+
     @classmethod
-    def execute_chain(cls, bot, event, history: list[dict], image_desc: str, config: Any) -> tuple[dict | None, str]:
-        """依次执行所有插件的 run()，合并结果；支持 block 终止和 re_exec 追加"""
+    def execute_chain(cls, bot, event, history: list[dict], image_desc: str, config: Any) -> PluginHookResult:
+        """依次执行所有插件的钩子，合并结果；支持 pre_prompt、block 终止和 re_exec 追加"""
         merged: dict | None = None
         re_exec_parts: list[str] = []
+        pre_prompt_parts: list[str] = []
 
         for p in cls.plugins:
             try:
-                result = p.module.run(
+                before_run = getattr(p.module, "before_run", None)
+                if callable(before_run):
+                    before_result = cls._call_hook(
+                        before_run,
+                        p.name,
+                        bot=bot,
+                        event=event,
+                        history=history,
+                        image_desc=image_desc,
+                        config=config,
+                        plugin_config=p.settings,
+                    )
+                    if isinstance(before_result, str):
+                        before_result = before_result.strip()
+                        if before_result:
+                            pre_prompt_parts.append(before_result)
+                    elif isinstance(before_result, dict):
+                        prompt_text = str(before_result.get("prompt") or before_result.get("append_prompt") or "").strip()
+                        if prompt_text:
+                            pre_prompt_parts.append(prompt_text)
+
+                result = cls._call_hook(
+                    p.module.run,
+                    p.name,
                     bot=bot,
                     event=event,
                     history=history,
@@ -123,18 +174,19 @@ class PluginLoader:
                 if merged is None:
                     merged = {}
                 merged.update(result)
-                # block=True 终止后续插件执行，但已合并的结果仍会生效
                 if result.get("block"):
                     break
-                # re_exec 插件：将 append_prompt 收集起来，后续注入 prompt 让 AI 重新生成
                 if p.settings.get("re_exec", False):
                     if result.get("append_prompt"):
                         re_exec_parts.append(result["append_prompt"])
             except Exception as e:
                 logger.error(f"Plugin {p.name} run() error: {e}")
 
-        re_exec_append = "\n\n".join(re_exec_parts) if re_exec_parts else ""
-        return merged, re_exec_append
+        return PluginHookResult(
+            merged=merged,
+            re_exec_append="\n\n".join(re_exec_parts) if re_exec_parts else "",
+            pre_prompt_parts=pre_prompt_parts,
+        )
 
     @classmethod
     def has_re_exec_plugins(cls) -> bool:
