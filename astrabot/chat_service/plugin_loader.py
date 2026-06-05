@@ -19,6 +19,7 @@ DEFAULT_SETTINGS = {
     "function_format": "string",
     "function_desc": "",
     "re_exec": False,
+    "expose_to_ai": True,
 }
 
 
@@ -40,6 +41,28 @@ class PluginInfo:
 class PluginLoader:
     plugins: list[PluginInfo] = []
     _loaded = False
+
+    @staticmethod
+    def _normalize_id_set(values: Any) -> set[str]:
+        if not values:
+            return set()
+        normalized: set[str] = set()
+        for value in values:
+            text = str(value).strip()
+            if text:
+                normalized.add(text)
+        return normalized
+
+    @staticmethod
+    def _is_plugin_enabled_for_event(plugin: PluginInfo, event: Any) -> bool:
+        enabled_groups = plugin.settings.get("enabled_groups")
+        if not enabled_groups:
+            return True
+        group_id = getattr(event, "group_id", None)
+        if group_id is None:
+            return False
+        normalized = PluginLoader._normalize_id_set(enabled_groups)
+        return str(group_id) in normalized
 
     @classmethod
     def load_all(cls):
@@ -81,7 +104,7 @@ class PluginLoader:
         cls._loaded = True
 
     @classmethod
-    def get_plugin_section(cls) -> str:
+    def get_plugin_section(cls, event: Any | None = None) -> str:
         """生成注入到 prompt 中的工具说明文本，告知 AI 可用的插件字段"""
         if not cls.plugins:
             return ""
@@ -89,6 +112,10 @@ class PluginLoader:
         required = []
         optional = []
         for p in cls.plugins:
+            if event is not None and not cls._is_plugin_enabled_for_event(p, event):
+                continue
+            if not p.settings.get("expose_to_ai", True):
+                continue
             fmt = p.settings.get("function_format", "string")
             desc = p.settings.get("function_desc", "")
             if not desc:
@@ -112,7 +139,7 @@ class PluginLoader:
         return "\n".join(lines)
 
     @staticmethod
-    def _call_hook(func, plugin_name: str, **kwargs):
+    async def _call_hook(func, plugin_name: str, **kwargs):
         try:
             signature = inspect.signature(func)
             accepted_kwargs = {
@@ -124,13 +151,16 @@ class PluginLoader:
             accepted_kwargs = kwargs
 
         try:
-            return func(**accepted_kwargs)
+            result = func(**accepted_kwargs)
+            if inspect.isawaitable(result):
+                return await result
+            return result
         except TypeError as e:
             logger.error(f"Plugin {plugin_name} hook call error: {e}")
             return None
 
     @classmethod
-    def execute_chain(cls, bot, event, history: list[dict], image_desc: str, config: Any) -> PluginHookResult:
+    async def execute_chain(cls, bot, event, history: list[dict], image_desc: str, reply_context: dict | None, config: Any) -> PluginHookResult:
         """依次执行所有插件的钩子，合并结果；支持 pre_prompt、block 终止和 re_exec 追加"""
         merged: dict | None = None
         re_exec_parts: list[str] = []
@@ -140,13 +170,14 @@ class PluginLoader:
             try:
                 before_run = getattr(p.module, "before_run", None)
                 if callable(before_run):
-                    before_result = cls._call_hook(
+                    before_result = await cls._call_hook(
                         before_run,
                         p.name,
                         bot=bot,
                         event=event,
                         history=history,
                         image_desc=image_desc,
+                        reply_context=reply_context,
                         config=config,
                         plugin_config=p.settings,
                     )
@@ -159,13 +190,14 @@ class PluginLoader:
                         if prompt_text:
                             pre_prompt_parts.append(prompt_text)
 
-                result = cls._call_hook(
+                result = await cls._call_hook(
                     p.module.run,
                     p.name,
                     bot=bot,
                     event=event,
                     history=history,
                     image_desc=image_desc,
+                    reply_context=reply_context,
                     config=config,
                     plugin_config=p.settings,
                 )

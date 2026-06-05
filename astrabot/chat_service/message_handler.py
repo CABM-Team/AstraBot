@@ -216,6 +216,80 @@ async def handle_group_message(bot: Bot, event: GroupMessageEvent):
         ReplyController.set_replying(group_id, False)
 
 
+async def _extract_reply_context(bot: Bot, group_id: int, event: GroupMessageEvent, config) -> dict:
+    reply_segment = None
+    reply_message_id = None
+    for seg in event.get_message():
+        if seg.type == "reply":
+            reply_message_id = int(seg.data["id"])
+            break
+
+    if event.reply:
+        try:
+            reply_obj = event.reply
+            sender = reply_obj.sender
+            try:
+                plain = reply_obj.message.get_plaintext()
+            except Exception:
+                plain = str(reply_obj.message)
+            reply_segment = {
+                "type": "reply",
+                "user_id": str(sender.user_id),
+                "user_name": sender.card or sender.nickname or "",
+                "message": plain[:100],
+            }
+        except Exception as e:
+            logger.warning(f"Failed to extract reply context from event.reply: {e}")
+
+    if reply_message_id is None:
+        return {"segment": reply_segment, "message_text": "", "image_desc": ""}
+
+    reply_text = ""
+    reply_images_b64: list[str] = []
+    try:
+        original = await bot.get_msg(message_id=reply_message_id)
+        sender = original.get("sender", {})
+        msg_segments = original.get("message", [])
+        if isinstance(msg_segments, list):
+            parts: list[str] = []
+            for s in msg_segments:
+                if s.get("type") == "text":
+                    parts.append(s.get("data", {}).get("text", ""))
+                elif s.get("type") == "image":
+                    url = s.get("data", {}).get("url", "")
+                    b64 = await download_image_base64(url) if url else None
+                    if b64:
+                        reply_images_b64.append(b64)
+            reply_text = "".join(parts)
+        else:
+            reply_text = str(msg_segments)
+        if reply_segment is None:
+            reply_segment = {
+                "type": "reply",
+                "user_id": str(sender.get("user_id", "")),
+                "user_name": sender.get("card") or sender.get("nickname", ""),
+                "message": reply_text[:100],
+            }
+    except Exception as e:
+        logger.warning(f"Failed to fetch reply message {reply_message_id}: {e}")
+        if not reply_text and reply_segment:
+            reply_text = str(reply_segment.get("message") or "")
+
+    reply_image_desc = ""
+    if reply_images_b64:
+        ctx = reply_text or (reply_segment.get("message", "") if reply_segment else "")
+        analysis_prompt = build_image_analysis_prompt(config.image_analyzer, ctx)
+        reply_image_result = await analyze_images(reply_images_b64, analysis_prompt)
+        reply_desc_parts = [v for _, v in sorted(reply_image_result.items())]
+        reply_image_desc = "; ".join(reply_desc_parts)
+
+    return {
+        "segment": reply_segment,
+        "message_text": reply_text,
+        "image_desc": reply_image_desc,
+    }
+
+
 async def _reply_flow(
     bot: Bot,
     event: GroupMessageEvent,
@@ -241,6 +315,7 @@ async def _reply_flow(
     plugin_since = int(time.time())  # 记录插件执行前的时间戳，后续用于获取执行期间的新消息
 
     history = await select_context(group_id, max_messages=15, exclude_message_id=event.message_id)
+    reply_context = await _extract_reply_context(bot, group_id, event, config)
 
     current_image_descs: list[str] = []
     image_desc = ""
@@ -255,18 +330,19 @@ async def _reply_flow(
         current_image_descs = desc_parts
         image_desc = "; ".join(desc_parts)
 
-    plugin_hook_result = PluginLoader.execute_chain(
+    plugin_hook_result = await PluginLoader.execute_chain(
         bot=bot,
         event=event,
         history=history,
         image_desc=image_desc,
+        reply_context=reply_context,
         config=config,
     )
     plugin_result = plugin_hook_result.merged
     re_exec_append = plugin_hook_result.re_exec_append
     pre_prompt_parts = plugin_hook_result.pre_prompt_parts
 
-    plugin_section = PluginLoader.get_plugin_section()
+    plugin_section = PluginLoader.get_plugin_section(event=event)
 
     if plugin_result and plugin_result.get("skip_main") and not re_exec_append:
         # 插件要求跳过主 AI 调用，直接使用插件返回的回复
@@ -417,17 +493,19 @@ async def _reply_flow(
         # 检查 AI 回复中是否包含插件调用字段，若有则执行插件并重新生成回复
         plugin_val = None
         exec_fn = None
+        exec_plugin = None
         for p in PluginLoader.plugins:
             v = reply_json.get(p.name)
             if v is not None and isinstance(v, str) and v.strip():
                 plugin_val = v
                 exec_fn = getattr(p.module, "execute", None)
+                exec_plugin = p
                 break
         if not exec_fn or not plugin_val:
             break
         if reply_text:
             await _send_reply(bot, event, group_id, reply_text, reply_json=reply_json, record_reply=True)
-        output = await exec_fn(plugin_val)
+        output = await exec_fn(plugin_val, group_id=group_id, plugin_config=getattr(exec_plugin, "settings", None))
         logger.info(f"Plugin executed: {plugin_val}")
         logger.debug(f"Plugin output:\n{output[:1000]}")
         plugin_inject = f"你执行了命令 `{plugin_val}`，输出如下：\n{output[:2000]}"
